@@ -1,0 +1,13 @@
+BasedOnStyle: Google
+Standard: c++17
+ColumnLimit: 100
+IndentWidth: 2
+AccessModifierOffset: -1
+PointerAlignment: Left
+SortIncludes: true
+IncludeBlocks: Regroup
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+BreakBeforeBraces: Attach
+NamespaceIndentation: None
+DerivePointerAlignment: false

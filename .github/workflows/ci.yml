@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  cmake-transport:
+    name: CMake rl_transport (ubuntu-22.04)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            pkg-config \
+            protobuf-compiler \
+            libprotobuf-dev \
+            ca-certificates \
+            curl \
+            unzip
+
+      - name: Configure, build, and test rl_transport
+        run: |
+          cmake -S rl_transport -B build/rl_transport -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build/rl_transport --parallel
+          ctest --test-dir build/rl_transport --output-on-failure
+
+      - name: Configure, build, and test rl_hal
+        run: |
+          cmake -S rl_hal -B build/rl_hal -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build/rl_hal --parallel
+          ctest --test-dir build/rl_hal --output-on-failure
+
+  colcon-humble:
+    name: colcon (ros:humble)
+    runs-on: ubuntu-22.04
+    container:
+      image: ros:humble
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git \
+            build-essential \
+            cmake \
+            pkg-config \
+            protobuf-compiler \
+            libprotobuf-dev \
+            python3-colcon-common-extensions \
+            ros-humble-rclcpp-lifecycle \
+            ros-humble-geometry-msgs \
+            ros-humble-nav-msgs \
+            ca-certificates \
+            curl \
+            unzip
+
+      - uses: actions/checkout@v4
+
+      - name: Colcon build and test
+        shell: bash
+        run: |
+          set -eo pipefail
+          source /opt/ros/humble/setup.bash
+          colcon build --base-paths . --packages-select rl_transport rl_hal rl_bridge --event-handlers console_direct+
+          colcon test --base-paths . --packages-select rl_transport rl_hal --event-handlers console_direct+
+          colcon test-result --verbose

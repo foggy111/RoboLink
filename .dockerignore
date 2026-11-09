@@ -1,0 +1,12 @@
+.git
+.github
+build
+install
+log
+cmake-build-*
+**/*.pb.cc
+**/*.pb.h
+.vscode
+.idea
+*.swp
+.DS_Store

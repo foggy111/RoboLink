@@ -1,0 +1,36 @@
+# 构建目录（CMake / colcon）
+build/
+install/
+log/
+cmake-build-*/
+out/
+Testing/
+
+# CMake 中间文件
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+CMakeUserPresets.json
+
+# Protobuf 生成物（只应出现在构建目录里）
+*.pb.cc
+*.pb.h
+
+# 编译产物
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+a.out
+
+# 编辑器与系统
+.vscode/
+.idea/
+.cache/
+*.swp
+*~
+.DS_Store

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package robolink;
+
+import "header.proto";
+
+// 平面差速底盘够用的里程计。位置单位 m，yaw 单位 rad。
+message Odometry {
+  Header header = 1;
+  double x = 2;
+  double y = 3;
+  double yaw = 4;
+  double vx = 5;
+  double vyaw = 6;
+}

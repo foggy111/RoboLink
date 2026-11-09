@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package robolink;
+
+import "header.proto";
+
+// 节点心跳。诊断与录制回放（M5）会用它判断对端是否还活着。
+message Heartbeat {
+  Header header = 1;
+  string node_name = 2;
+  uint32 pid = 3;
+
+  enum Status {
+    STATUS_UNKNOWN = 0;
+    STATUS_OK = 1;
+    STATUS_WARN = 2;
+    STATUS_ERROR = 3;
+  }
+
+  Status status = 4;
+}

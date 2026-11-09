@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package robolink;
+
+// 业务消息共用的头。
+// crc32 不是对「最终字节」再算一遍（那样字段自身会改变序列化结果），
+// 而是对「crc32 置 0 之后的序列化字节 + 固定域盐」做 IEEE CRC-32。
+// 具体步骤见 rl_transport/include/rl_transport/codec.hpp。
+message Header {
+  uint64 seq = 1;
+  uint64 timestamp_ns = 2;
+  uint32 crc32 = 3;
+}

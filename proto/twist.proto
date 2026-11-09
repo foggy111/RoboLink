@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package robolink;
+
+import "header.proto";
+
+// 对齐 geometry_msgs/Twist。线速度 m/s，角速度 rad/s。
+message Twist {
+  Header header = 1;
+  double linear_x = 2;
+  double linear_y = 3;
+  double linear_z = 4;
+  double angular_x = 5;
+  double angular_y = 6;
+  double angular_z = 7;
+}
