@@ -3,7 +3,7 @@
 <package format="3">
   <name>rl_bridge</name>
   <version>0.1.0</version>
-  <description>把 rl_transport 和 ROS 2 话题接起来的生命周期节点骨架。</description>
+  <description>把 cmd_vel 复制到 UDS，并把 UDS 上的里程计解码成 rl_odom。不替换仿真里的 /cmd_vel。</description>
   <maintainer email="foggy111@users.noreply.github.com">foggy111</maintainer>
   <license>MIT</license>
 
@@ -14,6 +14,7 @@
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>rl_transport</depend>
+  <build_depend>protobuf-dev</build_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
