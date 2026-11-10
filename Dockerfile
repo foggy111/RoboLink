@@ -34,8 +34,9 @@ RUN mkdir -p /ws/src \
     && bash -c 'set -eo pipefail; \
         source /opt/ros/humble/setup.bash; \
         cd /ws; \
-        colcon build --base-paths src/RoboLink --packages-select rl_transport rl_hal rl_bridge; \
-        colcon test --base-paths src/RoboLink --packages-select rl_transport rl_hal --event-handlers console_direct+; \
+        python3 src/RoboLink/rl_nav/test/test_assets.py; \
+        colcon build --base-paths src/RoboLink --packages-select rl_transport rl_hal rl_bridge rl_nav; \
+        colcon test --base-paths src/RoboLink --packages-select rl_transport rl_hal rl_bridge rl_nav --event-handlers console_direct+; \
         colcon test-result --verbose'
 
 CMD ["bash", "-lc", "source /opt/ros/humble/setup.bash && source /ws/install/setup.bash && exec bash"]

@@ -27,6 +27,10 @@ CMakeUserPresets.json
 *.dylib
 a.out
 
+# Python
+__pycache__/
+*.pyc
+
 # 编辑器与系统
 .vscode/
 .idea/

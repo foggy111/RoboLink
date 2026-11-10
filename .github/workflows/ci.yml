@@ -22,7 +22,11 @@ jobs:
             libprotobuf-dev \
             ca-certificates \
             curl \
-            unzip
+            unzip \
+            python3
+
+      - name: rl_nav asset and doc checks
+        run: python3 rl_nav/test/test_assets.py
 
       - name: Configure, build, and test rl_transport
         run: |
@@ -64,11 +68,13 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      # 不在这里 apt 安装 Gazebo / Nav2，也不启动仿真。rl_nav 只安装资源；
+      # rl_bridge 的转换测试不需要仿真器。
       - name: Colcon build and test
         shell: bash
         run: |
           set -eo pipefail
           source /opt/ros/humble/setup.bash
-          colcon build --base-paths . --packages-select rl_transport rl_hal rl_bridge --event-handlers console_direct+
-          colcon test --base-paths . --packages-select rl_transport rl_hal --event-handlers console_direct+
+          colcon build --base-paths . --packages-select rl_transport rl_hal rl_bridge rl_nav --event-handlers console_direct+
+          colcon test --base-paths . --packages-select rl_transport rl_hal rl_bridge rl_nav --event-handlers console_direct+
           colcon test-result --verbose

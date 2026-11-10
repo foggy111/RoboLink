@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""在已经跑起来的仿真上记 PPT 的四项观测。
+
+默认不发送导航目标，成功率保持待测。
+缺消息的环节写未采集。本脚本不修改 README。
+"""
+
+import sys
+import time
+from pathlib import Path
+
+import rclpy
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import OccupancyGrid, Odometry, Path
+from rclpy.node import Node
+from rclpy.parameter import Parameter
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from sensor_msgs.msg import LaserScan
+from tf2_ros import Buffer, TransformException, TransformListener
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from nav_goal import SendNavGoal, declare_default
+from nav_metrics_report import collect_environment, observe, render_markdown
+
+
+def _delay_ms(node, stamp):
+    now = node.get_clock().now()
+    if now.nanoseconds == 0:
+        return None
+    msg_time = rclpy.time.Time.from_msg(stamp)
+    return (now - msg_time).nanoseconds / 1e6
+
+
+class MetricCollector(Node):
+    def __init__(self):
+        super().__init__(
+            "collect_nav_metrics",
+            automatically_declare_parameters_from_overrides=True,
+            parameter_overrides=[Parameter("use_sim_time", Parameter.Type.BOOL, True)],
+        )
+        declare_default(self, "duration_sec", 10.0)
+        declare_default(self, "output", "")
+        declare_default(self, "goal_attempts", 0)
+        self.samples = {
+            "scan_recv_s": [],
+            "scan_delay_ms": [],
+            "amcl_recv_s": [],
+            "amcl_delay_ms": [],
+            "global_costmap_recv_s": [],
+            "local_costmap_recv_s": [],
+            "plan_recv_s": [],
+            "cmd_vel_recv_s": [],
+            "odom_recv_s": [],
+            "tf": {},
+        }
+        self._t0 = time.monotonic()
+        sensor_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+        map_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self.create_subscription(LaserScan, "scan", self._on_scan, sensor_qos)
+        self.create_subscription(Odometry, "amcl_pose", self._on_amcl, 10)
+        self.create_subscription(OccupancyGrid, "global_costmap/costmap", self._on_global, map_qos)
+        self.create_subscription(OccupancyGrid, "local_costmap/costmap", self._on_local, 10)
+        self.create_subscription(Path, "plan", self._on_plan, 10)
+        self.create_subscription(Twist, "cmd_vel", self._on_cmd, 10)
+        self.create_subscription(Odometry, "odom", self._on_odom, 10)
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self, spin_thread=False)
+
+    def _mark(self, key):
+        self.samples[key].append(time.monotonic() - self._t0)
+
+    def _on_scan(self, msg):
+        self._mark("scan_recv_s")
+        delay = _delay_ms(self, msg.header.stamp)
+        if delay is not None:
+            self.samples["scan_delay_ms"].append(delay)
+
+    def _on_amcl(self, msg):
+        self._mark("amcl_recv_s")
+        delay = _delay_ms(self, msg.header.stamp)
+        if delay is not None:
+            self.samples["amcl_delay_ms"].append(delay)
+
+    def _on_global(self, _msg):
+        self._mark("global_costmap_recv_s")
+
+    def _on_local(self, _msg):
+        self._mark("local_costmap_recv_s")
+
+    def _on_plan(self, _msg):
+        self._mark("plan_recv_s")
+
+    def _on_cmd(self, _msg):
+        self._mark("cmd_vel_recv_s")
+
+    def _on_odom(self, _msg):
+        self._mark("odom_recv_s")
+
+    def lookup_tf(self):
+        pairs = (
+            ("map_to_base_link", "map", "base_link"),
+            ("odom_to_base_footprint", "odom", "base_footprint"),
+            ("base_link_to_laser_link", "base_link", "laser_link"),
+        )
+        for name, parent, child in pairs:
+            try:
+                transform = self._tf_buffer.lookup_transform(parent, child, rclpy.time.Time())
+            except TransformException as ex:
+                self.samples["tf"][name] = {"ok": False, "detail": str(ex)}
+                continue
+            translation = transform.transform.translation
+            self.samples["tf"][name] = {
+                "ok": True,
+                "x": translation.x,
+                "y": translation.y,
+                "z": translation.z,
+                "stamp_sec": transform.header.stamp.sec,
+                "stamp_nanosec": transform.header.stamp.nanosec,
+            }
+
+
+def _write(output, report, markdown):
+    if not output:
+        return
+    path = Path(output)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        __import__("json").dumps(report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    path.with_suffix(".md").write_text(markdown, encoding="utf-8")
+
+
+def main():
+    rclpy.init()
+    node = MetricCollector()
+    attempts = int(node.get_parameter("goal_attempts").value)
+    output = str(node.get_parameter("output").value)
+    task_results = None
+    start = time.monotonic()
+    try:
+        if attempts > 0:
+            task_results = []
+            sender = SendNavGoal()
+            for index in range(attempts):
+                node.get_logger().info(f"开始第 {index + 1}/{attempts} 次 NavigateToPose")
+                code = sender.run(extra_nodes=(node,))
+                task_results.append(code == 0)
+            sender.destroy_node()
+        else:
+            duration = float(node.get_parameter("duration_sec").value)
+            deadline = time.monotonic() + duration
+            while time.monotonic() < deadline:
+                rclpy.spin_once(node, timeout_sec=0.1)
+        rclpy.spin_once(node, timeout_sec=0.2)
+        node.lookup_tf()
+    finally:
+        window_s = time.monotonic() - start
+        samples = dict(node.samples)
+        samples["window_s"] = window_s
+        report = observe(samples, collect_environment(), task_results)
+        markdown = render_markdown(report)
+        print(markdown)
+        _write(output, report, markdown)
+        if output:
+            print(f"原始记录已写入 {output} 和同名 .md。未修改 README。")
+        else:
+            print("未写文件。要留下原始记录，设置参数 output。")
+        node.destroy_node()
+        rclpy.shutdown()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
